@@ -11,7 +11,9 @@ import RPi.GPIO as GPIO
 bus = smbus.SMBus(1)
 
 ADC_addr = 0x1D # Address of the ADC chip on the ADDA board
-DAC_addr = 0x1F # Address of the ADC chip on the ADDA board 
+DAC_addrs = [0x1F, 0x14]
+current_index = (0, 1)
+DAC_addr = DAC_addrs[current_index[0]]
 
 RLED = 35   # Pin number (on board) of the red LED
 GLED = 37   # Pin number (on board) of the green LED
@@ -57,9 +59,16 @@ def init_ADC():
 # Return value: None                      
 ###########################################
 def init_DAC():
-    bus.write_i2c_block_data(DAC_addr, 0b00100000, [  0,   0]) # External reference (5V)
-    bus.write_i2c_block_data(DAC_addr, 0b11000000, [127, 127]) # Write data to all registers
-    bus.write_i2c_block_data(DAC_addr, 0b11000001, [  0,   0]) # Update all DAC latches with current register
+    try:
+        bus.write_i2c_block_data(DAC_addr, 0b00100000, [  0,   0]) # External reference (5V)
+        bus.write_i2c_block_data(DAC_addr, 0b11000000, [127, 127]) # Write data to all registers
+        bus.write_i2c_block_data(DAC_addr, 0b11000001, [  0,   0]) # Update all DAC latches with current register
+    except:
+        current_index = (sum(current_index), -1*current_index[1])
+        DAC_addr = DAC_addrs[current_index[0]]
+        bus.write_i2c_block_data(DAC_addr, 0b00100000, [  0,   0]) # External reference (5V)
+        bus.write_i2c_block_data(DAC_addr, 0b11000000, [127, 127]) # Write data to all registers
+        bus.write_i2c_block_data(DAC_addr, 0b11000001, [  0,   0]) # Update all DAC latches with current register
 
 ###########################################
 # Start an AD conversion on given channel 
@@ -95,8 +104,14 @@ def set_DAC(channel, value):
         bus.write_i2c_block_data(DAC_addr, channel_base+channel, [int(value*255/5), 0]) # Write data to first output (5V/255)*100 = 1.96V
         return 0
     except:
-        print("DAC Error:", sys.exc_info()[1])
-        return -1
+        try:
+            current_index = (sum(current_index), -1*current_index[1])
+            DAC_addr = DAC_addrs[current_index[0]]
+            bus.write_i2c_block_data(DAC_addr, channel_base+channel, [int(value*255/5), 0]) # Write data to first output (5V/255)*100 = 1.96V
+            return 0
+        except: 
+            print("DAC Error:", sys.exc_info()[1])
+            return -1
 
 ###########################################
 # Check if a set command is valid         
@@ -181,6 +196,11 @@ def compile_cmd(cmd):
                 # msg.extend(["sleep", delay_time_in_second, 0])
                 msg.extend(["set", 0, 0])
                 device = controller
+
+        elif cmd[0] == "addr":
+            DAC_addr = cmd[1]
+            msg = "addr set"
+            device = cmd[1]
                 
     return (msg, device)
     
@@ -309,9 +329,11 @@ while 1:
                 connected = False
             else:
                 (cmds, device) = compile_cmd(cmd)
-                if len(cmds) != 0:
+                if cmds = "addr set":
+                    msg = "Addr set to " + device
+                elif len(cmds) != 0:
                     recv = HVAC(cmds)
-                    if recv == "Unkown Commands" :
+                    if recv == "Unkown Commands":
                         msg = print_help()
                             
                     elif len(recv) > 0:
@@ -322,7 +344,7 @@ while 1:
                             else:
                                 msg = cmd[1] + " is set to " + cmd[2] + "\r\n"
                         else:
-                            msg = "ADDA error\r\n"
+                            msg = "ADDA error\r\n" + 'Please assigned an I2C address for DAC mannully using'
                     else:
                         msg = "Nothing recieved\r\n" 
                 else:
