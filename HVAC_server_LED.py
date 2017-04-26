@@ -11,7 +11,7 @@ import RPi.GPIO as GPIO
 bus = smbus.SMBus(1)
 
 ADC_addr = 0x1D # Address of the ADC chip on the ADDA board
-DAC_addrs = [0x1F, 0x14]
+DAC_addrs = [0x1F, 0x1C]
 current_index = (0, 1)
 DAC_addr = DAC_addrs[current_index[0]]
 
@@ -59,16 +59,24 @@ def init_ADC():
 # Return value: None                      
 ###########################################
 def init_DAC():
-    try:
-        bus.write_i2c_block_data(DAC_addr, 0b00100000, [  0,   0]) # External reference (5V)
-        bus.write_i2c_block_data(DAC_addr, 0b11000000, [127, 127]) # Write data to all registers
-        bus.write_i2c_block_data(DAC_addr, 0b11000001, [  0,   0]) # Update all DAC latches with current register
-    except:
-        current_index = (sum(current_index), -1*current_index[1])
-        DAC_addr = DAC_addrs[current_index[0]]
-        bus.write_i2c_block_data(DAC_addr, 0b00100000, [  0,   0]) # External reference (5V)
-        bus.write_i2c_block_data(DAC_addr, 0b11000000, [127, 127]) # Write data to all registers
-        bus.write_i2c_block_data(DAC_addr, 0b11000001, [  0,   0]) # Update all DAC latches with current register
+	global current_index
+	global DAC_addr
+
+	try:
+		bus.write_i2c_block_data(DAC_addr, 0b00100000, [  0,   0]) # External reference (5V)
+		bus.write_i2c_block_data(DAC_addr, 0b11000000, [127, 127]) # Write data to all registers
+		bus.write_i2c_block_data(DAC_addr, 0b11000001, [  0,   0]) # Update all DAC latches with current register
+		print("Crrent DAC adress is", DAC_addr)
+	except:
+		try:
+			current_index = (sum(current_index), -1*current_index[1])
+			DAC_addr = DAC_addrs[current_index[0]]
+			bus.write_i2c_block_data(DAC_addr, 0b00100000, [  0,   0]) # External reference (5V)
+			bus.write_i2c_block_data(DAC_addr, 0b11000000, [127, 127]) # Write data to all registers
+			bus.write_i2c_block_data(DAC_addr, 0b11000001, [  0,   0]) # Update all DAC latches with current register
+			print("Crrent DAC adress is", DAC_addr)
+		except:
+			throw("Initilization Failed, no such I2C device")
 
 ###########################################
 # Start an AD conversion on given channel 
@@ -98,20 +106,25 @@ def get_ADC(channel):
 # Return value: 0 if success, -1 if failed
 ###########################################
 def set_DAC(channel, value):
-    try:
-        print("Setting ", value, "V to channel ", channel, "...", sep='')
-        channel_base = 0b10110000
-        bus.write_i2c_block_data(DAC_addr, channel_base+channel, [int(value*255/5), 0]) # Write data to first output (5V/255)*100 = 1.96V
-        return 0
-    except:
-        try:
-            current_index = (sum(current_index), -1*current_index[1])
-            DAC_addr = DAC_addrs[current_index[0]]
-            bus.write_i2c_block_data(DAC_addr, channel_base+channel, [int(value*255/5), 0]) # Write data to first output (5V/255)*100 = 1.96V
-            return 0
-        except: 
-            print("DAC Error:", sys.exc_info()[1])
-            return -1
+	global current_index
+	global DAC_addr
+	try:
+		print("Setting ", value, "V to channel ", channel, "...", sep='')
+		channel_base = 0b10110000
+		bus.write_i2c_block_data(DAC_addr, channel_base+channel, [int(value*255/5), 0]) # Write data to first output (5V/255)*100 = 1.96V
+		print("Crrent DAC adress is", DAC_addr)
+		return 0
+	except:
+		try:
+			current_index = (sum(current_index), -1*current_index[1])
+			DAC_addr = DAC_addrs[current_index[0]]
+			print("DAC adress changed to", DAC_addr)
+			bus.write_i2c_block_data(DAC_addr, channel_base+channel, [int(value*255/5), 0]) # Write data to first output (5V/255)*100 = 1.96V
+			print("Crrent DAC adress is", DAC_addr)
+			return 0
+		except: 
+			print("DAC Error:", sys.exc_info()[1])
+			return -1
 
 ###########################################
 # Check if a set command is valid         
@@ -329,7 +342,7 @@ while 1:
                 connected = False
             else:
                 (cmds, device) = compile_cmd(cmd)
-                if cmds = "addr set":
+                if cmds == "addr set":
                     msg = "Addr set to " + device
                 elif len(cmds) != 0:
                     recv = HVAC(cmds)
