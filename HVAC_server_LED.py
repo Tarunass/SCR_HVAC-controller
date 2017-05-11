@@ -1,3 +1,5 @@
+#! /usr/bin/python3
+
 #####################################################################
 # This program is used as a server to interface with HVAC Controller
 # It is listening for TCP connection on port 60606 by default
@@ -207,9 +209,12 @@ def compile_cmd(cmd):
                 msg.extend(["set", 0, 0.75+controller*0.5])
 				# delay_time_in_second = 10
                 # msg.extend(["sleep", delay_time_in_second, 0])
-                msg.extend(["set", 0, 0])
+                # msg.extend(["set", 0, 0])
                 device = controller
-
+        elif cmd[0] == "bms":
+        	msg.extend(["set", 1, 0])
+        	msg.extend(["set", 0, 0])
+        	device = 7
         elif cmd[0] == "addr":
             DAC_addr = cmd[1]
             msg = "addr set"
@@ -247,6 +252,7 @@ def print_help():
     msg += "Set temperature:\tset temp [temperature from 0 to 50 degree]\r\n"
     msg += "Set fan speed:\t\tset fan off|low|medium|high\r\n"
     msg += "Set EP level:\t\tset ep1|ep2|ep3|ep4 [EP value from 0 to 5]\r\n"
+    msg += "Init BMS:\t\tbms\r\n"
     msg += "Quit:\t\t\tquit\r\n"
     return msg
 
@@ -355,9 +361,12 @@ while 1:
                             if cmd[0] == "read":
                                 msg = cmd[1] + " reading is " + compile_data(device, float(recv[-2])) + "\r\n"
                             else:
-                                msg = cmd[1] + " is set to " + cmd[2] + "\r\n"
+                            	if cmd[0] == "bms":
+                            		msg = "BMS Initialized\r\n"
+                            	else:
+                                	msg = cmd[1] + " is set to " + cmd[2] + "\r\n"
                         else:
-                            msg = "ADDA error\r\n" + 'Please assigned an I2C address for DAC mannully using'
+                            msg = "ADDA error\r\n" + 'Please assigned an I2C address for DAC mannully using\r\n'
                     else:
                         msg = "Nothing recieved\r\n" 
                 else:
